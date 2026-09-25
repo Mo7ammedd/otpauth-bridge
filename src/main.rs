@@ -11,6 +11,7 @@ use clap::{Args, Parser, Subcommand, ValueEnum};
 use otpauth_bridge::{
     Account,
     formats::{self, Importer, InputFormat, OutputFormat},
+    qr,
 };
 use serde::Serialize;
 use zeroize::Zeroizing;
@@ -50,7 +51,17 @@ enum Command {
         #[arg(long, value_name = "FILE")]
         new_password_file: Option<PathBuf>,
     },
-
+    /// Create PNG QR codes to scan with another authenticator
+    Qr {
+        #[command(flatten)]
+        input: Inputs,
+        /// New directory for numbered PNGs and a metadata-only index.json
+        #[arg(short, long, value_name = "DIR")]
+        output: PathBuf,
+        /// Individual standard QRs or batched Google migration QRs
+        #[arg(long, value_enum, default_value_t = QrKind::Individual)]
+        kind: QrKind,
+    },
 }
 
 #[derive(Args)]
@@ -110,6 +121,12 @@ impl From<Destination> for OutputFormat {
             Destination::Bundle => Self::Bundle,
         }
     }
+}
+
+#[derive(Clone, Copy, PartialEq, Eq, ValueEnum)]
+enum QrKind {
+    Individual,
+    Google,
 }
 
 #[derive(Serialize)]
@@ -222,6 +239,54 @@ fn inspect(accounts: &[Account], json: bool) -> Result<()> {
     Ok(())
 }
 
+fn export_qr(accounts: &[Account], output: &Path, kind: QrKind) -> Result<()> {
+    let uris = match kind {
+        QrKind::Individual => accounts
+            .iter()
+            .map(formats::otpauth::encode)
+            .collect::<otpauth_bridge::Result<Vec<_>>>()?,
+        QrKind::Google => formats::google::encode(accounts)?,
+    };
+    #[derive(Serialize)]
+    struct QrIndex<'a> {
+        version: u32,
+        kind: &'static str,
+        files: Vec<String>,
+        accounts: Vec<Metadata<'a>>,
+    }
+    let mut files = Vec::new();
+    let mut names = Vec::new();
+    // Render every image first, so capacity errors never leave a partial migration.
+    for (index, uri) in uris.iter().enumerate() {
+        let name = format!("{:04}.png", index + 1);
+        let bytes = qr::encode(uri).with_context(|| format!("cannot render QR {}", index + 1))?;
+        names.push(name.clone());
+        files.push((name, bytes));
+    }
+    let index = QrIndex {
+        version: 1,
+        kind: if kind == QrKind::Individual {
+            "otpauth"
+        } else {
+            "google"
+        },
+        files: names,
+        accounts: metadata(accounts),
+    };
+    files.push((
+        "index.json".into(),
+        Zeroizing::new(serde_json::to_vec_pretty(&index)?),
+    ));
+    storage::write_private_directory(output, &files)?;
+    eprintln!(
+        "Wrote {} QR image(s) for {} account(s) to {}",
+        uris.len(),
+        accounts.len(),
+        output.display()
+    );
+    Ok(())
+}
+
 fn run(cli: Cli) -> Result<()> {
     match cli.command {
         Command::Inspect { input, json } => inspect(&load(&input)?, json),
@@ -259,7 +324,14 @@ fn run(cli: Cli) -> Result<()> {
             );
             Ok(())
         }
-
+        Command::Qr {
+            input,
+            output,
+            kind,
+        } => {
+            storage::ensure_new(&output)?;
+            export_qr(&load(&input)?, &output, kind)
+        }
     }
 }
 

@@ -76,6 +76,27 @@ pub fn write_private(path: &Path, bytes: &[u8]) -> Result<()> {
     Ok(())
 }
 
+/// All payloads are prepared before reserving this new directory.
+pub fn write_private_directory(path: &Path, files: &[(String, Zeroizing<Vec<u8>>)]) -> Result<()> {
+    ensure_new(path)?;
+    let mut builder = fs::DirBuilder::new();
+    #[cfg(unix)]
+    {
+        use std::os::unix::fs::DirBuilderExt;
+        builder.mode(0o700);
+    }
+    builder
+        .create(path)
+        .with_context(|| format!("cannot create new output directory {}", path.display()))?;
+    for (name, bytes) in files {
+        if let Err(error) = write_private(&path.join(name), bytes) {
+            let _ = fs::remove_dir_all(path);
+            return Err(error);
+        }
+    }
+    Ok(())
+}
+
 pub fn read_password(path: &Path) -> Result<Zeroizing<String>> {
     let bytes = read_bounded(path, 64 * 1024)?;
     let text = std::str::from_utf8(&bytes).context("password file must contain UTF-8 text")?;

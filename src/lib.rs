@@ -1,5 +1,6 @@
 //! Offline migration of TOTP account parameters across authenticator export formats.
 
+pub mod bundle;
 mod error;
 pub mod formats;
 mod model;

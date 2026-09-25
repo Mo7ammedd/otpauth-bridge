@@ -1,0 +1,3 @@
+# Public demonstration keys only. Never use these keys to protect real accounts.
+otpauth://totp/GitHub:alice%40example.com?secret=JBSWY3DPEHPK3PXP&issuer=GitHub&algorithm=SHA1&digits=6&period=30
+otpauth://totp/Example:bob%40example.org?secret=GEZDGNBVGY3TQOJQGEZDGNBVGY3TQOJQ&issuer=Example&algorithm=SHA256&digits=8&period=60

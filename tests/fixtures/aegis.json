@@ -1,0 +1,29 @@
+{
+  "version": 1,
+  "header": { "slots": null, "params": null },
+  "db": {
+    "version": 3,
+    "entries": [
+      {
+        "type": "totp",
+        "uuid": "00000000-0000-4000-8000-000000000001",
+        "name": "alice@example.com",
+        "issuer": "GitHub",
+        "note": "Public test key, not a real account",
+        "favorite": false,
+        "icon": null,
+        "groups": [],
+        "info": { "secret": "JBSWY3DPEHPK3PXP", "algo": "SHA1", "digits": 6, "period": 30 }
+      },
+      {
+        "type": "totp",
+        "uuid": "00000000-0000-4000-8000-000000000002",
+        "name": "bob@example.org",
+        "issuer": "Example",
+        "info": { "secret": "GEZDGNBVGY3TQOJQGEZDGNBVGY3TQOJQ", "algo": "SHA256", "digits": 8, "period": 60 }
+      }
+    ],
+    "groups": [],
+    "icons_optimized": true
+  }
+}

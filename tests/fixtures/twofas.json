@@ -1,0 +1,56 @@
+{
+  "schemaVersion": 4,
+  "appOrigin": "android",
+  "appVersionCode": 5000000,
+  "appVersionName": "test-fixture",
+  "updatedAt": 0,
+  "servicesEncrypted": null,
+  "reference": null,
+  "groups": [],
+  "services": [
+    {
+      "name": "GitHub",
+      "secret": "JBSWY3DPEHPK3PXP",
+      "updatedAt": 0,
+      "serviceTypeID": null,
+      "otp": {
+        "link": null,
+        "label": "alice@example.com",
+        "account": "alice@example.com",
+        "issuer": "GitHub",
+        "algorithm": "SHA1",
+        "digits": 6,
+        "period": 30,
+        "counter": 0,
+        "tokenType": "TOTP",
+        "source": "Manual"
+      },
+      "order": { "position": 0 },
+      "badge": null,
+      "icon": null,
+      "groupId": null
+    },
+    {
+      "name": "Example",
+      "secret": "GEZDGNBVGY3TQOJQGEZDGNBVGY3TQOJQ",
+      "updatedAt": 0,
+      "serviceTypeID": null,
+      "otp": {
+        "link": null,
+        "label": "bob@example.org",
+        "account": "bob@example.org",
+        "issuer": "Example",
+        "algorithm": "SHA256",
+        "digits": 8,
+        "period": 60,
+        "counter": 0,
+        "tokenType": "TOTP",
+        "source": "Manual"
+      },
+      "order": { "position": 1 },
+      "badge": null,
+      "icon": null,
+      "groupId": null
+    }
+  ]
+}

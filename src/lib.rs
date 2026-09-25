@@ -1,4 +1,15 @@
 //! Offline migration of TOTP account parameters across authenticator export formats.
+//!
+//! ```
+//! use otpauth_bridge::formats::{InputFormat, OutputFormat, import, export};
+//! # fn main() -> otpauth_bridge::Result<()> {
+//! let input = b"otpauth://totp/Example:alice?secret=JBSWY3DPEHPK3PXP&issuer=Example";
+//! let accounts = import(input, InputFormat::Auto, None)?;
+//! let aegis_json = export(&accounts, OutputFormat::Aegis, None)?;
+//! assert!(!aegis_json.is_empty());
+//! # Ok(())
+//! # }
+//! ```
 
 pub mod bundle;
 mod error;

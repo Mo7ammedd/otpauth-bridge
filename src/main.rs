@@ -1,0 +1,3 @@
+mod storage;
+
+fn main() {}

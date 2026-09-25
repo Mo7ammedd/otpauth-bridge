@@ -4,6 +4,7 @@ pub mod bundle;
 mod error;
 pub mod formats;
 mod model;
+pub mod qr;
 
 pub use error::{Error, Result};
 pub use model::{Account, Algorithm, Secret};

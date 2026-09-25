@@ -2,7 +2,7 @@ mod storage;
 
 use std::{
     io::{self, Write},
-    path::PathBuf,
+    path::{Path, PathBuf},
     process::ExitCode,
 };
 
@@ -10,7 +10,7 @@ use anyhow::{Context, Result, bail};
 use clap::{Args, Parser, Subcommand, ValueEnum};
 use otpauth_bridge::{
     Account,
-    formats::{self, Importer, InputFormat},
+    formats::{self, Importer, InputFormat, OutputFormat},
 };
 use serde::Serialize;
 use zeroize::Zeroizing;
@@ -35,6 +35,20 @@ enum Command {
         /// Print metadata as JSON (never includes secret keys)
         #[arg(long)]
         json: bool,
+    },
+    /// Convert or merge exports into a new file
+    Convert {
+        #[command(flatten)]
+        input: Inputs,
+        /// Destination file format
+        #[arg(long, value_enum)]
+        to: Destination,
+        /// New output file; parent directory must already exist
+        #[arg(short, long, value_name = "FILE")]
+        output: PathBuf,
+        /// Read the NEW bundle password from a file instead of prompting
+        #[arg(long, value_name = "FILE")]
+        new_password_file: Option<PathBuf>,
     },
 
 }
@@ -73,6 +87,27 @@ impl From<Source> for InputFormat {
             Source::Twofas => Self::Twofas,
             Source::Bundle => Self::Bundle,
             Source::Qr => Self::Qr,
+        }
+    }
+}
+
+#[derive(Clone, Copy, PartialEq, Eq, ValueEnum)]
+enum Destination {
+    Otpauth,
+    Google,
+    Aegis,
+    Twofas,
+    Bundle,
+}
+
+impl From<Destination> for OutputFormat {
+    fn from(value: Destination) -> Self {
+        match value {
+            Destination::Otpauth => Self::Otpauth,
+            Destination::Google => Self::Google,
+            Destination::Aegis => Self::Aegis,
+            Destination::Twofas => Self::Twofas,
+            Destination::Bundle => Self::Bundle,
         }
     }
 }
@@ -144,6 +179,20 @@ fn prompt(message: &str) -> Result<Zeroizing<String>> {
     ))
 }
 
+fn new_password(path: Option<&Path>) -> Result<Zeroizing<String>> {
+    match path {
+        Some(path) => storage::read_password(path),
+        None => {
+            let password = prompt("New bundle password (at least 12 characters): ")?;
+            let confirmation = prompt("Confirm new bundle password: ")?;
+            if password.as_str() != confirmation.as_str() {
+                bail!("passwords do not match");
+            }
+            Ok(password)
+        }
+    }
+}
+
 fn inspect(accounts: &[Account], json: bool) -> Result<()> {
     let metadata = metadata(accounts);
     let mut stdout = io::stdout().lock();
@@ -176,6 +225,40 @@ fn inspect(accounts: &[Account], json: bool) -> Result<()> {
 fn run(cli: Cli) -> Result<()> {
     match cli.command {
         Command::Inspect { input, json } => inspect(&load(&input)?, json),
+        Command::Convert {
+            input,
+            to,
+            output,
+            new_password_file,
+        } => {
+            storage::ensure_new(&output)?;
+            if to != Destination::Bundle && new_password_file.is_some() {
+                bail!("--new-password-file requires --to bundle");
+            }
+            let accounts = load(&input)?;
+            let password = if to == Destination::Bundle {
+                Some(new_password(new_password_file.as_deref())?)
+            } else {
+                None
+            };
+            let bytes = formats::export(
+                &accounts,
+                to.into(),
+                password.as_ref().map(|value| value.as_str()),
+            )?;
+            storage::write_private(&output, &bytes)?;
+            eprintln!(
+                "Wrote {} account(s) to {}{}",
+                accounts.len(),
+                output.display(),
+                if to == Destination::Bundle {
+                    " (encrypted)"
+                } else {
+                    " (contains secret keys)"
+                }
+            );
+            Ok(())
+        }
 
     }
 }

@@ -1,6 +1,6 @@
 use std::{
     fs::{self, File},
-    io::Read,
+    io::{Read, Write},
     path::Path,
 };
 
@@ -26,6 +26,54 @@ pub fn read_bounded(path: &Path, limit: usize) -> Result<Zeroizing<Vec<u8>>> {
         bail!("input exceeds the size limit: {}", path.display());
     }
     Ok(bytes)
+}
+
+pub fn ensure_new(path: &Path) -> Result<()> {
+    if path.as_os_str() == "-" {
+        bail!("choose an output path; secret-bearing output is never written to stdout");
+    }
+    match fs::symlink_metadata(path) {
+        Ok(_) => bail!(
+            "output already exists; choose a new path: {}",
+            path.display()
+        ),
+        Err(err) if err.kind() == std::io::ErrorKind::NotFound => Ok(()),
+        Err(err) => {
+            Err(err).with_context(|| format!("cannot inspect output path {}", path.display()))
+        }
+    }
+}
+
+/// Write beside the destination, then persist without replacing an existing file.
+pub fn write_private(path: &Path, bytes: &[u8]) -> Result<()> {
+    ensure_new(path)?;
+    let parent = path
+        .parent()
+        .filter(|p| !p.as_os_str().is_empty())
+        .unwrap_or(Path::new("."));
+    let mut temporary = tempfile::Builder::new()
+        .prefix(".otpauth-bridge-")
+        .tempfile_in(parent)
+        .with_context(|| format!("cannot create output in {}", parent.display()))?;
+    #[cfg(unix)]
+    {
+        use std::os::unix::fs::PermissionsExt;
+        temporary
+            .as_file()
+            .set_permissions(fs::Permissions::from_mode(0o600))?;
+    }
+    temporary.write_all(bytes)?;
+    temporary.as_file().sync_all()?;
+    temporary
+        .persist_noclobber(path)
+        .map_err(|err| err.error)
+        .with_context(|| {
+            format!(
+                "cannot save {}; existing files are never replaced",
+                path.display()
+            )
+        })?;
+    Ok(())
 }
 
 pub fn read_password(path: &Path) -> Result<Zeroizing<String>> {
